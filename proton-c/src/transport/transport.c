@@ -1781,32 +1781,23 @@ static ssize_t transport_consume(pn_transport_t *transport)
  */
 static char *get_connection_host(pn_connection_t *connection)
 {
-    pn_string_t *str = pn_string(pn_connection_get_hostname(connection));
+    const char *hostname = pn_connection_get_hostname(connection);
 
-    char *hostname = pn_string_buffer(str);
-
-    if (!hostname) {
-        pn_free(str);
+    if (!hostname)
         return 0;
-    }
 
+    const char *end = strrchr(hostname, ':');
 
-    char *colon = strrchr(hostname, ':');
+    int len = end ? strlen(hostname) - strlen(end) : strlen(hostname);
 
-    char *host = 0;
-    if(colon) {
-        host = pn_strndup(pn_string_get(connection->hostname), strlen(hostname) - strlen(colon));
-    }
-    else {
-        host = pn_strndup(pn_string_get(connection->hostname), strlen(hostname));
-    }
+    char *retval = (char*) malloc((len + 1) * sizeof(char *));
 
-    pn_free(str);
+    if (!retval)
+        return 0;
 
-    return host;
-
-
-
+    strncpy(retval, (char*)hostname, len);
+    retval[len] = '\0';
+    return retval;
 }
 
 static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
@@ -1836,8 +1827,8 @@ static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endp
                               connection->offered_capabilities,
                               connection->desired_capabilities,
                               connection->properties);
-      if (err) return err;
       free(host);
+      if (err) return err;
       transport->open_sent = true;
     }
   }

@@ -1773,6 +1773,39 @@ static ssize_t transport_consume(pn_transport_t *transport)
   return consumed;
 }
 
+/**
+ * If the connection's hostname contains say "www.something.com:5646", this function will extract and return a pointer to the newly allocated memory location
+ * which contains just the host (www.something.com). If there is no port in the hostname, this function will return a pointer to the newly allocated memory location
+ * which contains just the host (www.something.com).
+ * The caller of this function is responsible for freeing the memory.
+ */
+static char *get_connection_host(pn_connection_t *connection)
+{
+    pn_string_t *str = pn_string(pn_connection_get_hostname(connection));
+
+    char *hostname = pn_string_buffer(str);
+
+    if (!hostname)
+        return 0;
+
+    char *colon = strrchr(hostname, ':');
+
+    char *host = 0;
+    if(colon) {
+        host = pn_strndup(pn_string_get(connection->hostname), strlen(hostname) - strlen(colon));
+    }
+    else {
+        host = pn_strndup(pn_string_get(connection->hostname), strlen(hostname));
+    }
+
+    pn_free(str);
+
+    return host;
+
+
+
+}
+
 static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endpoint)
 {
   if (endpoint->type == CONNECTION)
@@ -1787,9 +1820,12 @@ static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endp
       pn_connection_t *connection = (pn_connection_t *) endpoint;
       const char *cid = pn_string_get(connection->container);
       pni_calculate_channel_max(transport);
+
+      char *host = get_connection_host(connection);
+
       int err = pn_post_frame(transport, AMQP_FRAME_TYPE, 0, "DL[SS?I?H?InnCCC]", OPEN,
                               cid ? cid : "",
-                              pn_string_get(connection->hostname),
+                              host,
                               // if not zero, advertise our max frame size and idle timeout
                               (bool)transport->local_max_frame, transport->local_max_frame,
                               (bool)transport->channel_max, transport->channel_max,
@@ -1798,6 +1834,7 @@ static int pni_process_conn_setup(pn_transport_t *transport, pn_endpoint_t *endp
                               connection->desired_capabilities,
                               connection->properties);
       if (err) return err;
+      free(host);
       transport->open_sent = true;
     }
   }

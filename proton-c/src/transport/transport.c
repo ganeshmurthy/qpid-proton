@@ -1785,8 +1785,11 @@ static char *get_connection_host(pn_connection_t *connection)
 
     char *hostname = pn_string_buffer(str);
 
-    if (!hostname)
+    if (!hostname) {
+        pn_free(str);
         return 0;
+    }
+
 
     char *colon = strrchr(hostname, ':');
 

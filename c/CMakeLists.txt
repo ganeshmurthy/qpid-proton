@@ -403,19 +403,45 @@ endif (BUILD_TLS)
 
 source_group("API Header Files" FILES ${qpid-proton-include} ${qpid-proton-include-extra})
 
+# Additional compiler-specific flags
+set(C_PGO_GNU "")
+set(C_PGO_Clang "")
+set(C_PGO_MSVC "")
+set(CMAKE_EXE_LINKER_FLAGS "")
+
+if (ENABLE_PROFILE_GUIDED_OPTIMIZATION)
+  message(STATUS "Profile Guided Optimization is enabled")
+  if (CMAKE_BUILD_TYPE MATCHES "Coverage")
+  else(CMAKE_BUILD_TYPE MATCHES "Coverage")
+    message(FATAL_ERROR "Profile Guided Optimization is enabled, so CMAKE_BUILD_TYPE must be set to Coverage")   
+  endif(CMAKE_BUILD_TYPE MATCHES "Coverage")
+
+  if("GNU" STREQUAL ${CMAKE_C_COMPILER_ID})
+    set(C_PGO_GNU ${C_PGO_GNU} "-fprofile-generate=${CMAKE_BINARY_DIR}/profile-data -fprofile-correction")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-generate=${CMAKE_BINARY_DIR}/profile-data -fprofile-correction")
+  endif("GNU" STREQUAL ${CMAKE_C_COMPILER_ID})
+  if("Clang" STREQUAL ${CMAKE_C_COMPILER_ID})
+      # We are currently not supporting PGO on Clang although clang has good options to do PGO.
+      # Any contributions to skupper-router in this regard is welcome.
+      message(FATAL_ERROR "Profile Guided optimization of skupper-router not supported on ${CMAKE_C_COMPILER_ID}. Please consider contributing this feature")
+  endif("Clang" STREQUAL ${CMAKE_C_COMPILER_ID})
+endif(ENABLE_PROFILE_GUIDED_OPTIMIZATION)
+
+set(C_PGO_FLAGS ${C_PGO_${CMAKE_C_COMPILER_ID}})
+
 set_source_files_properties (
   ${qpid-proton-core}
   ${qpid-proton-layers}
   ${qpid-proton-extra}
   ${qpid-proton-platform}
   PROPERTIES
-  COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS}"
+  COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS} ${C_PGO_FLAGS}"
   )
 
 set_source_files_properties (
   ${qpid-proton-platform-io}
   PROPERTIES
-  COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_EXTENDED_FLAGS}"
+  COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_EXTENDED_FLAGS} ${C_PGO_FLAGS}"
   COMPILE_DEFINITIONS "${PLATFORM_DEFINITIONS}"
   )
 
@@ -431,7 +457,7 @@ add_library (qpid-proton-core-objects OBJECT ${qpid-proton-core-src})
 add_dependencies (qpid-proton-core-objects generated_c_files)
 set_target_properties(qpid-proton-core-objects PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  LINK_FLAGS "${CATCH_UNDEFINED}")
+  LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}")
 target_compile_definitions(qpid-proton-core-objects PRIVATE qpid_proton_core_EXPORTS)
 target_link_libraries (qpid-proton-core-objects ${SSL_LIB} ${SASL_LIB} ${PLATFORM_LIBS})
 
@@ -439,7 +465,7 @@ add_library (qpid-proton-platform-io-objects OBJECT ${qpid-proton-platform-io})
 set_target_properties(qpid-proton-platform-io-objects PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   C_EXTENSIONS ON
-  LINK_FLAGS "${CATCH_UNDEFINED}")
+  LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}")
 target_compile_definitions(qpid-proton-platform-io-objects PRIVATE qpid_proton_EXPORTS)
 target_link_libraries (qpid-proton-platform-io-objects ${SSL_LIB} ${SASL_LIB} ${TIME_LIB} ${PLATFORM_LIBS} ${PROACTOR_LIBS})
 
@@ -449,7 +475,7 @@ set_target_properties (qpid-proton-core
   PROPERTIES
   VERSION   "${PN_LIB_CORE_VERSION}"
   SOVERSION "${PN_LIB_CORE_MAJOR_VERSION}"
-  LINK_FLAGS "${CATCH_UNDEFINED}"
+  LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}"
   EXPORT_NAME core)
 
 if (BUILD_STATIC_LIBS)
@@ -463,13 +489,13 @@ endif(BUILD_STATIC_LIBS)
 if (qpid-proton-proactor)
   set(HAS_PROACTOR True)
   set_source_files_properties (${qpid-proton-proactor} PROPERTIES
-    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS}"
+    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS} ${C_PGO_FLAGS}"
     )
 
   add_library (qpid-proton-proactor-objects OBJECT ${qpid-proton-proactor})
   set_target_properties(qpid-proton-proactor-objects PROPERTIES
     POSITION_INDEPENDENT_CODE ON
-    LINK_FLAGS "${CATCH_UNDEFINED}")
+    LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}")
   target_compile_definitions(qpid-proton-proactor-objects PRIVATE qpid_proton_proactor_EXPORTS)
   target_link_libraries (qpid-proton-proactor-objects ${PLATFORM_LIBS} ${PROACTOR_LIBS})
 
@@ -480,7 +506,7 @@ if (qpid-proton-proactor)
     PROPERTIES
     VERSION   "${PN_LIB_PROACTOR_VERSION}"
     SOVERSION "${PN_LIB_PROACTOR_MAJOR_VERSION}"
-    LINK_FLAGS "${CATCH_UNDEFINED}"
+    LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}"
     EXPORT_NAME proactor
     )
   if (BUILD_STATIC_LIBS)
@@ -509,7 +535,7 @@ set_target_properties (qpid-proton
   PROPERTIES
   VERSION   "${PN_LIB_LEGACY_VERSION}"
   SOVERSION "${PN_LIB_LEGACY_MAJOR_VERSION}"
-  LINK_FLAGS "${CATCH_UNDEFINED}"
+  LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}"
   EXPORT_NAME qpid-proton
 )
 
@@ -530,7 +556,7 @@ endif(BUILD_STATIC_LIBS)
 if (qpid-proton-tls)
   set(HAS_TLS True)
   set_source_files_properties (${qpid-proton-tls} PROPERTIES
-    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS}"
+    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${C_STANDARD_FLAGS} ${C_PGO_FLAGS}"
     )
 
   add_library (qpid-proton-tls-objects OBJECT ${qpid-proton-tls})
@@ -538,7 +564,7 @@ if (qpid-proton-tls)
   target_link_libraries (qpid-proton-proactor  LINK_PRIVATE ${PLATFORM_LIBS} ${PROACTOR_LIBS})
   set_target_properties(qpid-proton-tls-objects PROPERTIES
     POSITION_INDEPENDENT_CODE ON
-    LINK_FLAGS "${CATCH_UNDEFINED}")
+    LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}")
   target_compile_definitions(qpid-proton-tls-objects PRIVATE qpid_proton_tls_EXPORTS)
   target_link_libraries (qpid-proton-tls-objects ${SSL_LIB} ${PLATFORM_LIBS})
 
@@ -549,7 +575,7 @@ if (qpid-proton-tls)
     PROPERTIES
     VERSION   "${PN_LIB_TLS_VERSION}"
     SOVERSION "${PN_LIB_TLS_MAJOR_VERSION}"
-    LINK_FLAGS "${CATCH_UNDEFINED}"
+    LINK_FLAGS "${CATCH_UNDEFINED} ${CMAKE_EXE_LINKER_FLAGS}"
     EXPORT_NAME tls
     )
   if (BUILD_STATIC_LIBS)

@@ -91,6 +91,7 @@ endif()
 
 # Build static C and C++ libraries in addition to shared libraries.
 option(BUILD_STATIC_LIBS "Build static libraries as well as shared libraries" OFF)
+option(ENABLE_PROFILE_GUIDED_OPTIMIZATION "Perform profile guided optimization" OFF)
 
 if (CMAKE_CONFIGURATION_TYPES)
   # There is no single "build type"...
@@ -99,14 +100,20 @@ else (CMAKE_CONFIGURATION_TYPES)
   # There is a single build configuration
   # If the build type is not set then set the default
   if (NOT CMAKE_BUILD_TYPE)
-  set (CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+    set (CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
        "Build type: Debug, Release, RelWithDebInfo, MinSizeRel or Coverage (default RelWithDebInfo)" FORCE)
   endif ()
 
   # Set up extra coverage analysis options for gcc and clang
   if (CMAKE_COMPILER_IS_GNUCC)
-    set (CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage")
-    set (CMAKE_CXX_FLAGS_COVERAGE "-g -O0 --coverage")
+    if (ENABLE_PROFILE_GUIDED_OPTIMIZATION)
+      message(STATUS "Setting special Coverage build flags for PGO")
+      set (CMAKE_C_FLAGS_COVERAGE "-g -O2 -DNDEBUG --coverage")
+      set (CMAKE_CXX_FLAGS_COVERAGE "-g -O2  --coverage")
+    else(ENABLE_PROFILE_GUIDED_OPTIMIZATION)
+      set (CMAKE_C_FLAGS_COVERAGE "-g -O0 --coverage")
+      set (CMAKE_CXX_FLAGS_COVERAGE "-g -O0 --coverage")
+    endif(ENABLE_PROFILE_GUIDED_OPTIMIZATION)    
     set (CMAKE_EXE_LINKER_FLAGS_COVERAGE "--coverage")
     set (CMAKE_MODULE_LINKER_FLAGS_COVERAGE "--coverage")
     set (CMAKE_SHARED_LINKER_FLAGS_COVERAGE "--coverage")
